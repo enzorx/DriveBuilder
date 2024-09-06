@@ -13,6 +13,7 @@
 #PS ver 10 X for exit, Reading CUSSD words 
 #PS ver 11 Functions added to reduce code, Domain Join removed, New package coding to reflect new style packaging,CUSSD=CDIT
 ####################################################################################################################################
+###Notes
 #PS CDIT = Custom Drive Information...Thingy
 #PS Needed = Merge zzfresh and 00info - This will be used with auto-rebuild and CDIT. Code adjustments will have to be fixed in 1, 2, 4, and 5
 ####################################################################################################################################
@@ -20,7 +21,7 @@
 Start-Transcript -Append C:\Temp\IntuneDrive.log
 ####################################################################################################################################
 #set variable for network location
-$netLocation = "\\tech.rcs.k12.tn.us\intune$"
+$netLocation = "\\server\path"
 #set variable for local location
 $localLocation = "C:\Intune"
 ###################################################################################################################################
