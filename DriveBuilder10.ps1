@@ -20,7 +20,7 @@ Start-Transcript -Append C:\Temp\IntuneDrive.log
 
 ####################################################################################################################################
 #set variable for network location
-$netLocation = "\\tech.rcs.k12.tn.us\intune$"
+$netLocation = ""
 #set variable for local location
 $localLocation = "C:\Intune"
 
