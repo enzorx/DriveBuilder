@@ -1,5 +1,5 @@
 ####################################################################################################################################
-#PS Ver	1 Matthew Brown with help from Brad Barnes and Chase Frazier
+#PS Ver	1 Matthew Brown (brownma@rcschools.net) with help from Brad Barnes and Chase Frazier
 #PS Ver 2 removed diskpart and fully Powershell
 #PS Ver 3 added PE drivers and loop for different autounattend files
 #PS Ver 4 added option  text file naming driver files, and local copy options with code and help by Brad Barnes...also the CUSSD file round 1
@@ -19,9 +19,9 @@
 Start-Transcript -Append C:\Temp\DriveBuilder.log
 ####################################################################################################################################
 #set variable for network location
-$netLocation = 
+$netLocation = "\\tech.rcs.k12.tn.us\intune$"
 #set variable for local location
-$localLocation = 
+$localLocation = "C:\DriveBuilder"
 
 ###################################################################################################################################
 #Rebuild Local Store Function automatically
@@ -173,7 +173,7 @@ Show-ProgressBar -PercentComplete $percentComplete
 
 ####################################################################################################################################
 #Yes or No Menu Function
-function Yes-NoMenu {param(
+function Show-YesNoMenu {param(
         [string]$YesOption = "Yes",
         [string]$NoOption = "No"
     )
@@ -190,30 +190,31 @@ function Yes-NoMenu {param(
 
 ####################################################################################################################################
 #Choose Package Function
-function Choose-Package { 
+function Get-WCDPackage { 
   param(
     [string]$PackagePath
   )
-  #add your package names here
-  Write-Host "example 1"
-  Write-Host "example 2" 
+  Write-Host "Staff = School Staff, Staff Shared, Nurse Staff, Cafe Manager, IT Staff (AutoPilot)"
+  Write-Host "Student = Module Lab and Restricted Student (AutoPilot)" 
+  Write-Host "Support = FLW, Serving Line, Kiosk (AutoPilot)" 
+  Write-Host "HSS, MSS, ESS = Grade Band (Package Enrolled)" 
 
   # Loop until a valid input is provided
   do {
-    $input = Read-Host -Prompt 'Please select a package'
-    if ([string]::IsNullOrEmpty($input)) {
+    $WCDPackage = Read-Host -Prompt 'Please select a package'
+    if ([string]::IsNullOrEmpty($WCDPackage)) {
       Write-Host "You forgot to enter a package. Try again" -ForegroundColor Yellow
     } else {
-      $PackagePath = $input  # Set the parameter only if input is valid
+      $PackagePath = $WCDPackage  # Set the parameter only if input is valid
     }
-  } until (-not [string]::IsNullOrEmpty($input))
+  } until (-not [string]::IsNullOrEmpty($WCDPackage))
   # Optional: Return the selected package path if desired
   return $PackagePath
 }
 
 ####################################################################################################################################
 #Choose Driver Function
-function Choose-Driver { 
+function Select-Driver { 
   param(
     [string]$driverPath
   )
@@ -224,7 +225,7 @@ do
 $driverinput= Read-Host -Prompt 'Input your model'
 
 if ([string]::IsNullOrEmpty($driverinput)) {
-        Write-Host "You forgot to enter a model. Try again." -ForegroundColor Yellow
+        Write-Host "You forgot to enter a model. Try again or use NA for basic generic drivers" -ForegroundColor Yellow
     }
 } until (-not [string]::IsNullOrEmpty($driverinput))
 $driverPath = $driverinput
@@ -236,7 +237,7 @@ return $driverPath
 function FormatUSB {
     Start-Sleep -Seconds 2 
     #rescan hardware
-    echo rescan | diskpart
+    Write-Output rescan | diskpart
 
     # Stop hardware detection
     Stop-Service -Name ShellHWDetection
@@ -268,7 +269,7 @@ If(Test-Path -Path $localLocation\Fresh.txt){
  #Subtraction ...so much algebra? Is this algebra? 
  $freshOrExpired = $currentDateObj - $packageDateObj
 
- if(($freshOrExpired | Select -ExpandProperty Days) -lt 364){Write-Host "LOCAL STORE is valid" -ForegroundColor Green}
+ if(($freshOrExpired | Select-Object -ExpandProperty Days) -lt 364){Write-Host "LOCAL STORE is valid" -ForegroundColor Green}
   else{
   Write-Host "LOCAL STORE has not been rebuilt in the last year. Rebuilding Now." -ForegroundColor Red
   Set-LocalStore
@@ -298,14 +299,14 @@ $choice = Read-Host "Enter your choice"
 if ($choice -eq "1") {
 
 #Trigger Package Class function
-$Package = Choose-Package $PackagePath
+$Package = Get-WCDPackage $PackagePath
 Write-Host "$Package package selected" -ForegroundColor Blue
 
 #$OS= Read-Host -Prompt 'Input OS Choice (11 or 10)'
 $OS= 11
 
 #Trigger Choose Driver function
-$driverModel = Choose-Driver $driverPath
+$driverModel = Select-Driver $driverPath
 if(Test-Path -Path "$netLocation\Drivers\$driverModel"){
 Write-Host "$driverModel model selected" -ForegroundColor Blue
 
@@ -387,7 +388,7 @@ Copy-Folder -source $sourceOSFiles  -destination $destinationOSFiles
 Copy-Folder -source $sourceOSStorage  -destination $destinationOSStorage
 Copy-Folder -source $sourceApps  -destination $destinationApps
 
-$wimFile = "Z:\install.wim"
+$wimFile = "$Storage\install.wim"
 $packageCheckFile = "$netLocation\Packages\chk.id12"
 
 #Packages - Get the last modified date of chkid file for package
@@ -412,8 +413,8 @@ Add-Content $CDITFile "OS Patched: $formattedDate"
 Add-Content $CDITFile "Model $driverModel"
 
 #Change name to drivers and move PE drivers and set autounattend.xml
-If(Test-Path -Path $Storage\$driverModel){
-Rename-Item "$Storage\$driverModel" -NewName "Drivers" -force -ErrorAction Ignore
+If(Test-Path -Path $destinationDrivers){
+Rename-Item "$destinationDrivers" -NewName "Drivers" -force -ErrorAction Ignore
 Move-Item "$Storage\Drivers\PE" -destination $Storage -Force -ErrorAction Ignore
 Copy-Item "$Storage\Drivers\autounattend.xml" -destination $OSFiles -Force -ErrorAction Ignore
     }
@@ -422,7 +423,7 @@ Copy-Item "$Storage\Drivers\autounattend.xml" -destination $OSFiles -Force -Erro
 }
   #prompt to loop again
 write-Host "Would you like to build another with the same values?" -ForegroundColor Yellow
-$loop = Yes-NoMenu
+$loop = Show-YesNoMenu
 #end of loop
 }
 #end of driver check
@@ -436,9 +437,9 @@ $loop = Yes-NoMenu
 #Choice 2 Patch My Drive
   elseif ($choice -eq "2") {
 
-#Call Yes-NoMenu Function to update local store
+#Call Show-YesNoMenu Function to update local store
 Write-Host "Do you want to check\update OS and Apps found on your local store?" -ForegroundColor Yellow
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #trigger chkid scan on local store
 if($result -eq 1){Write-host "Updating local store"
@@ -490,9 +491,9 @@ if (Test-Path $chkFileOSLocal) {
 }
 else{Write-host "Cancel" -ForegroundColor Red }
 
-#Call Yes-NoMenu Function to Drivers
+#Call Show-YesNoMenu Function to Drivers
 Write-Host "Do you want to check for updated Drivers for your local store?" -ForegroundColor Yellow
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #trigger chkid on local Drivers
 if($result -eq 1){
@@ -539,9 +540,9 @@ else{Write-host "Cancel" -ForegroundColor Red }
 #Choice 3 Build a local store on C:\DriveBuilder (or where you make your local store)
     elseif ($choice -eq "3") {
     #Builds The Local Store specified in the variable 
-#Call Yes-NoMenu Function
+#Call Show-YesNoMenu Function
 Write-host "Confirm you want to rebuild your LOCAL STORE. This will take some time" -ForegroundColor Yellow
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #trigger rebuild
 if($result -eq 1){Write-host "Building local store"
@@ -552,9 +553,9 @@ else{Write-host "Cancel" -ForegroundColor Red }
 ####################################################################################################################################
 #Choice 4 add additional drivers to  C:\DriveBuilder but NOT deleting the others.
   elseif ($choice -eq "4") {
-#Call Yes-NoMenu Function
+#Call Show-YesNoMenu Function
 Write-host "Confirm you want to add additional models to your local store."
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #trigger addition of files
 if($result -eq 1){
@@ -563,7 +564,7 @@ if($result -eq 1){
 Write-Host "Add a comma between models you plan to add (ex: 5000,5330,3140)"
 
 #Trigger Choose Driver function
-$localDriverModels4 = Choose-Driver $driverPath 
+$localDriverModels4 = Select-Driver $driverPath 
 Write-Host "$localDriverModels4 model(s) selected" -ForegroundColor Blue
 
 
@@ -593,7 +594,7 @@ Write-Host "OSFiles = $OSFiles and Storage = $Storage" -Foreground Blue
 #This will replace Drivers on the USB Drive.
 #Trigger Yes or No Menu
 Write-Host "Confirm you want to replace the package on your USB Drive" -ForegroundColor Yellow
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #Run a basic code to just copy drivers
 if($result -eq 1)
@@ -604,7 +605,7 @@ Remove-Item "$Storage\*.cat" -force -recurse -ErrorAction Ignore
 Write-Host "Previous packages removed." -ForegroundColor Red
 
 #Trigger Package function
-$Package = Choose-Package $PackagePath
+$Package = Get-WCDPackage $PackagePath
 
 #Copy Intune Packages. This includes logic for local package copy
 if(Test-Path -Path "$localLocation\Packages\$package.cat"){
@@ -652,13 +653,13 @@ $OSFiles = OSDriveScan -$OSFilesPath
 $Storage = storageDriveScan -$StoragePath
 Write-Host "OSFiles = $OSFiles and Storage = $Storage" -Foreground Blue
 #Trigger Choose Driver function
-$driverModel6= Choose-Driver $driverPath
+$driverModel6= Select-Driver $driverPath
 if(Test-Path -Path "$netLocation\Drivers\$driverModel6"){
 #This will replace Drivers on the USB Drive.
 #Trigger Yes or No Menu
 Write-host "Confirm you want to replace the drivers on USB Storage" -ForegroundColor Yellow
 Write-host ""
-$result = Yes-NoMenu
+$result = Show-YesNoMenu
 
 #Run a basic code to just copy drivers
 if($result -eq 1){
@@ -741,6 +742,49 @@ Write-Host ""
 Get-Content $CDITFile
 }
 else{Write-Host "Drive does not have a custom drive information thingy! Please rebuild the drive." -ForegroundColor Red}
+}
+
+####################################################################################################################################
+#Code A - This is nothing
+elseif ($choice -eq "A") {
+  Write-Host "A is also my favorite number" -ForegroundColor Blue
+}
+
+####################################################################################################################################
+#Code SPR
+elseif ($choice -eq "SPR") {
+$choices = @("Rock", "Paper", "Scissors")
+$computer = $choices | Get-Random
+$user = Read-Host "Choose Scissors, Paper, Rock"
+
+Write-Host "Computer chose: $computer"
+switch ($user) {
+    "Rock" { if ($computer -eq "Scissors") { Write-Host "You smashed!" } elseif ($computer -eq "Paper") { Write-Host "You can't see!" } else { Write-Host "Again!" } }
+    "Paper" { if ($computer -eq "Rock") { Write-Host "Covered It!" } elseif ($computer -eq "Scissors") { Write-Host "You are in pieces!" } else { Write-Host "Again!" } }
+    "Scissors" { if ($computer -eq "Paper") { Write-Host "You cut me deep!" } elseif ($computer -eq "Rock") { Write-Host "You got smashed!" } else { Write-Host "We can't talk about this!" } }
+    default { Write-Host "Invalid choice!" }
+ }
+}
+####################################################################################################################################
+#code ver
+elseif ($choice -eq "ver"){
+        # Best Pizza!
+@'
+ _   _             _     ____            _   _                   
+| | | |_   _ _ __ | |_  | __ ) _ __ ___ | |_| |__   ___ _ __ ___ 
+| |_| | | | | '_ \| __| |  _ \| '__/ _ \| __| '_ \ / _ \ '__/ __|
+|  _  | |_| | | | | |_  | |_) | | | (_) | |_| | | |  __/ |  \__ \
+|_| |_|\__,_|_| |_|\__| |____/|_|  \___/ \__|_| |_|\___|_|  |___/
+                                                                 
+ ____  _                _____    _ _ _   _             
+|  _ \(_)__________ _  | ____|__| (_) |_(_) ___  _ __  
+| |_) | |_  /_  / _` | |  _| / _` | | __| |/ _ \| '_ \ 
+|  __/| |/ / / / (_| | | |__| (_| | | |_| | (_) | | | |
+|_|   |_/___/___\__,_| |_____\__,_|_|\__|_|\___/|_| |_|
+
+DriveBuilder version 12                                                       
+'@ | Write-Host
+
 }
 
 ####################################################################################################################################
